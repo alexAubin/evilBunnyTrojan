@@ -7,7 +7,7 @@ from thread import *
 ############################################################################
 
 evilBunnyServerIP   = "127.0.0.1"
-evilBunnyServerPort = 8912
+evilBunnyServerPort = 8000
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 ############################################################################
